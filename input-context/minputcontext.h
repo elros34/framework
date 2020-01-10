@@ -26,6 +26,7 @@
 #include <qpa/qplatforminputcontext.h>
 
 class MImServerConnection;
+class QDBusInterface;
 
 class MInputContext : public QPlatformInputContext
 {
@@ -90,6 +91,7 @@ public Q_SLOTS:
 private Q_SLOTS:
     void sendHideInputMethod();
     void updateServerOrientation(Qt::ScreenOrientation orientation);
+    void updateNestedCompositorOrientation(int orientation);
 
     void onDBusDisconnection();
     void onDBusConnection();
@@ -130,6 +132,9 @@ private:
     // Parameter valid set to false on failure.
     int cursorStartPosition(bool *valid);
 
+    // Get nested compositor orientation
+    int getNestedCompositorOrientation();
+
     static bool debug;
 
     DBusServerConnection *imServer;
@@ -146,6 +151,9 @@ private:
     bool redirectKeys; // redirect all hw key events to the input method or not
     QLocale inputLocale;
     bool currentFocusAcceptsInput;
+
+    QDBusInterface *compositorConnectionInterface; // connection to nested compositor
+    int nestedCompositorOrientationAngle;
 };
 
 #endif

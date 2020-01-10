@@ -29,6 +29,8 @@
 #include <QWindow>
 #include <QSharedDataPointer>
 #include <QQuickItem>
+#include <QDBusInterface>
+#include <QDBusReply>
 
 namespace
 {
@@ -65,7 +67,8 @@ MInputContext::MInputContext()
       inputPanelState(InputPanelHidden),
       preeditCursorPos(-1),
       redirectKeys(false),
-      currentFocusAcceptsInput(false)
+      currentFocusAcceptsInput(false),
+      nestedCompositorOrientationAngle(0)
 {
     QByteArray debugEnvVar = qgetenv("MALIIT_DEBUG");
     if (!debugEnvVar.isEmpty() && debugEnvVar != "0") {
@@ -83,12 +86,29 @@ MInputContext::MInputContext()
     }
 
     imServer = new DBusServerConnection(address);
-    
+
     sipHideTimer.setSingleShot(true);
     sipHideTimer.setInterval(SoftwareInputPanelHideTimer);
     connect(&sipHideTimer, SIGNAL(timeout()), SLOT(sendHideInputMethod()));
 
     connectInputMethodServer();
+
+    // Nested compositor
+    QString compositorAddress = QString::fromLatin1(qgetenv("NESTED_COMPOSITOR_MALIIT_DBUS"));
+    if (!compositorAddress.isEmpty()) {
+        if (debug) qDebug() << "Maliit connecting to nested compositor at " << compositorAddress;
+        QDBusConnection conn = QDBusConnection::connectToPeer(compositorAddress,
+                                                              "nested_compositor");
+        compositorConnectionInterface = new QDBusInterface("org.nested_compositor.maliit", "/",
+                                                           "org.nested_compositor",
+                                                           conn,
+                                                           this);
+        if (compositorConnectionInterface->isValid()) {
+            conn.connect("", "/", "org.nested_compositor", "orientationChanged",
+                         this, SLOT(updateNestedCompositorOrientation(int)));
+            updateNestedCompositorOrientation(getNestedCompositorOrientation());
+        }
+    }
 }
 
 MInputContext::~MInputContext()
@@ -266,6 +286,7 @@ void MInputContext::update(Qt::InputMethodQueries queries)
     imServer->updateWidgetInformation(stateInformation, effectiveFocusChange);
 }
 
+// Not used with nested compositor
 void MInputContext::updateServerOrientation(Qt::ScreenOrientation orientation)
 {
     if (active) {
@@ -273,6 +294,27 @@ void MInputContext::updateServerOrientation(Qt::ScreenOrientation orientation)
     }
 }
 
+// Update nested compositor info for the keyboard
+void MInputContext::updateNestedCompositorOrientation(int orientation)
+{
+    if (debug) qDebug() << InputContextName << "in" << __PRETTY_FUNCTION__ << orientation;
+
+    nestedCompositorOrientationAngle = orientationAngle((Qt::ScreenOrientation)orientation);
+    if (active) {
+        imServer->appOrientationChanged(nestedCompositorOrientationAngle);
+    }
+}
+
+// Query nested compositor for orientation angle
+int MInputContext::getNestedCompositorOrientation()
+{
+    if (compositorConnectionInterface && compositorConnectionInterface->isValid()) {
+        QDBusReply<int> reply = compositorConnectionInterface->call("orientation");
+        if (reply.isValid())
+            return reply.value();
+    }
+    return 0; // unknown angle
+}
 
 void MInputContext::setFocusObject(QObject *focused)
 {
@@ -282,17 +324,9 @@ void MInputContext::setFocusObject(QObject *focused)
 
     QWindow *newFocusWindow = qGuiApp->focusWindow();
     if (newFocusWindow != window.data()) {
-       if (window) {
-           disconnect(window.data(), SIGNAL(contentOrientationChanged(Qt::ScreenOrientation)),
-                      this, SLOT(updateServerOrientation(Qt::ScreenOrientation)));
-       }
-
        window = newFocusWindow;
-       if (window) {
-           connect(window.data(), SIGNAL(contentOrientationChanged(Qt::ScreenOrientation)),
-                   this, SLOT(updateServerOrientation(Qt::ScreenOrientation)));
-           updateServerOrientation(window->contentOrientation());
-       }
+       if (window && active)
+           imServer->appOrientationChanged(nestedCompositorOrientationAngle);
     }
 
     bool oldAcceptInput = currentFocusAcceptsInput;
@@ -301,7 +335,7 @@ void MInputContext::setFocusObject(QObject *focused)
     if (!active && currentFocusAcceptsInput) {
         imServer->activateContext();
         active = true;
-        updateServerOrientation(newFocusWindow->contentOrientation());
+        imServer->appOrientationChanged(nestedCompositorOrientationAngle);
     }
 
     if (active && (currentFocusAcceptsInput || oldAcceptInput)) {
