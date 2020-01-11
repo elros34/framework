@@ -68,7 +68,8 @@ MInputContext::MInputContext()
       preeditCursorPos(-1),
       redirectKeys(false),
       currentFocusAcceptsInput(false),
-      nestedCompositorOrientationAngle(0)
+      nestedCompositorOrientationAngle(0),
+      nestedCompositorActive(true)
 {
     QByteArray debugEnvVar = qgetenv("MALIIT_DEBUG");
     if (!debugEnvVar.isEmpty() && debugEnvVar != "0") {
@@ -104,6 +105,9 @@ MInputContext::MInputContext()
                                                            conn,
                                                            this);
         if (compositorConnectionInterface->isValid()) {
+            conn.connect("", "/", "org.nested_compositor", "activeStateChanged",
+                         this, SLOT(updateNestedCompositorActiveState(bool)));
+            updateNestedCompositorActiveState(getNestedCompositorActiveState());
             conn.connect("", "/", "org.nested_compositor", "orientationChanged",
                          this, SLOT(updateNestedCompositorOrientation(int)));
             updateNestedCompositorOrientation(getNestedCompositorOrientation());
@@ -294,15 +298,25 @@ void MInputContext::updateServerOrientation(Qt::ScreenOrientation orientation)
     }
 }
 
-// Update nested compositor info for the keyboard
+// Update nested compositor info for the keyboard: orientation
 void MInputContext::updateNestedCompositorOrientation(int orientation)
 {
     if (debug) qDebug() << InputContextName << "in" << __PRETTY_FUNCTION__ << orientation;
 
     nestedCompositorOrientationAngle = orientationAngle((Qt::ScreenOrientation)orientation);
-    if (active) {
+    if (nestedCompositorActive && active) {
         imServer->appOrientationChanged(nestedCompositorOrientationAngle);
     }
+}
+
+// Update nested compositor info for the keyboard: state
+void MInputContext::updateNestedCompositorActiveState(bool state)
+{
+    if (nestedCompositorActive && !state) {
+        sendHideInputMethod();
+        imInitiatedHide(); // to remove focus in addition
+    }
+    nestedCompositorActive = state;
 }
 
 // Query nested compositor for orientation angle
@@ -313,7 +327,18 @@ int MInputContext::getNestedCompositorOrientation()
         if (reply.isValid())
             return reply.value();
     }
-    return 0; // unknown angle
+    return 0; // unknown orientation
+}
+
+// Query nested compositor for whether it's active
+bool MInputContext::getNestedCompositorActiveState()
+{
+    if (compositorConnectionInterface && compositorConnectionInterface->isValid()) {
+        QDBusReply<bool> reply = compositorConnectionInterface->call("activeState");
+        if (reply.isValid())
+            return reply.value();
+    }
+    return false;
 }
 
 void MInputContext::setFocusObject(QObject *focused)

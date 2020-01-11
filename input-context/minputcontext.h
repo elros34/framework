@@ -92,6 +92,7 @@ private Q_SLOTS:
     void sendHideInputMethod();
     void updateServerOrientation(Qt::ScreenOrientation orientation);
     void updateNestedCompositorOrientation(int orientation);
+    void updateNestedCompositorActiveState(bool state);
 
     void onDBusDisconnection();
     void onDBusConnection();
@@ -134,6 +135,7 @@ private:
 
     // Get nested compositor orientation
     int getNestedCompositorOrientation();
+    bool getNestedCompositorActiveState();
 
     static bool debug;
 
@@ -154,6 +156,7 @@ private:
 
     QDBusInterface *compositorConnectionInterface; // connection to nested compositor
     int nestedCompositorOrientationAngle;
+    bool nestedCompositorActive;
 };
 
 #endif
