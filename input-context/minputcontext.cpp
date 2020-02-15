@@ -638,6 +638,10 @@ void MInputContext::updateInputMethodArea(const QRect &rect)
         if (wasVisible != isInputPanelVisible()) {
             emitInputPanelVisibleChanged();
         }
+
+        if (compositorConnectionInterface && compositorConnectionInterface->isValid()) {
+            compositorConnectionInterface->call("setKeyboardSize", keyboardRectangle.size());
+        }
     }
 }
 
