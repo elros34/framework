@@ -12,6 +12,6 @@ Name: Maliit Server
 Description: Library for embedding the Maliit IM Server
 Version: @PROJECT_VERSION@
 Requires: maliit-framework maliit-plugins
-Cflags: -I${includedir}/maliit/server
+Cflags: -I${includedir}/maliit-2
 Libs: -L${libdir}
 

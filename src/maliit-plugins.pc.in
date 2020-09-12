@@ -12,5 +12,5 @@ Name: Maliit Plugins
 Description: Maliit provides a flexible and cross platform input method framework. It is usable on all MeeGo user experiences, and in other GNU/Linux distributions as well.
 Version: @PROJECT_VERSION@
 Requires: maliit-framework
-Cflags: -I${includedir}/maliit/plugins
+Cflags: -I${includedir}/maliit-2
 Libs: -L${libdir} -lmaliit-plugins
