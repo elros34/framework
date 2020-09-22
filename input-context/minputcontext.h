@@ -93,6 +93,7 @@ private Q_SLOTS:
     void updateServerOrientation(Qt::ScreenOrientation orientation);
     void updateNestedCompositorOrientation(int orientation);
     void updateNestedCompositorActiveState(bool state);
+    void updateNestedCompositorCursorRectangle(const QRect &rect);
 
     void onDBusDisconnection();
     void onDBusConnection();
@@ -157,6 +158,7 @@ private:
     QDBusInterface *compositorConnectionInterface; // connection to nested compositor
     int nestedCompositorOrientationAngle;
     bool nestedCompositorActive;
+    QRect cursorRectangle;
 };
 
 #endif

@@ -288,6 +288,7 @@ void MInputContext::update(Qt::InputMethodQueries queries)
     // get the state information of currently focused widget, and pass it to input method server
     QMap<QString, QVariant> stateInformation = getStateInformation();
     imServer->updateWidgetInformation(stateInformation, effectiveFocusChange);
+    updateNestedCompositorCursorRectangle(stateInformation.value("cursorRectangle").toRect());
 }
 
 // Not used with nested compositor
@@ -317,6 +318,15 @@ void MInputContext::updateNestedCompositorActiveState(bool state)
         imInitiatedHide(); // to remove focus in addition
     }
     nestedCompositorActive = state;
+}
+
+void MInputContext::updateNestedCompositorCursorRectangle(const QRect &rect)
+{
+    if (rect != cursorRectangle && compositorConnectionInterface &&
+        compositorConnectionInterface->isValid() ) {
+        compositorConnectionInterface->asyncCall("setCursorRectangle", rect);
+        cursorRectangle = rect;
+    }
 }
 
 // Query nested compositor for orientation angle
@@ -366,6 +376,7 @@ void MInputContext::setFocusObject(QObject *focused)
     if (active && (currentFocusAcceptsInput || oldAcceptInput)) {
         const QMap<QString, QVariant> stateInformation = getStateInformation();
         imServer->updateWidgetInformation(stateInformation, true);
+        updateNestedCompositorCursorRectangle(stateInformation.value("cursorRectangle").toRect());
     }
 
     if (inputPanelState == InputPanelShowPending && currentFocusAcceptsInput) {
@@ -489,7 +500,7 @@ void MInputContext::imInitiatedHide()
     if (inputItem) {
         inputItem->setFocus(false);
     }
-
+    updateNestedCompositorCursorRectangle(QRect());
 }
 
 void MInputContext::commitString(const QString &string, int replacementStart,
